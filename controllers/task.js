@@ -130,8 +130,9 @@ const update = async ctx => {
         })
         ctx.body = {
             code: 1000,
-            desc: '修改成功'
+            desc: 'success'
         }
+        console.log('修改成功')
     } catch (err) {
         const msg = err.errors[0]
         ctx.body = {
