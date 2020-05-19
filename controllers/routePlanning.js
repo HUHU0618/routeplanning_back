@@ -71,11 +71,12 @@ async function initLoadArray(length) {
     let randomArray = [];
     for (let i = 1; i <= length; ++i) {
         // 先找到 车辆 行
-        let vehicleId = await Vehicle.findOne({
+        let vehicle = await Vehicle.findOne({
             where: { id: i }
         });
         // 获取 车辆 类型编号
-        let tempId = vehicleId.getDataValue('typeId');
+        let tempId = vehicle.getDataValue('typeId');
+        console.log("typeId:" + tempId);
         let loadId = await VehicleType.findOne({
             where: { id: tempId }
         });
@@ -83,7 +84,7 @@ async function initLoadArray(length) {
         randomArray.push(temp);
         // console.log('vehicle:load' + temp);
     }
-    // console.log('load' + randomArray);
+    console.log('vehicle:load:' + randomArray);
     return randomArray;
 }
 
@@ -336,15 +337,19 @@ function updatePheromoneMatrix(taskNum, nodeNum, pathMatrix_allAnt, pheromoneMat
 
     maxPheromoneMatrix = [];
     criticalPointMatrix = [];
-    // for (let nodeIndex = 1; nodeIndex < nodeNum; ++nodeIndex) {
-    for (let taskIndex = 1; taskIndex < taskNum; ++taskIndex) {
-        let maxPheromone = pheromoneMatrix[0][taskNum];
+    for (let nodeIndex = 1; nodeIndex < nodeNum; ++nodeIndex) {
+        let maxPheromone = pheromoneMatrix[nodeNum - 1][0];
         let maxIndex = 0;
-        let sumPheromone = pheromoneMatrix[0][taskNum];
+        let sumPheromone = pheromoneMatrix[nodeNum - 1][0];
         let isAllSame = true;
+        // for (let taskIndex = 1; taskIndex < taskNum; ++taskIndex) {
+        // let maxPheromone = pheromoneMatrix[0][taskNum];
+        // let maxIndex = 0;
+        // let sumPheromone = pheromoneMatrix[0][taskNum];
+        // let isAllSame = true;
 
-        for (let nodeIndex = 0; nodeIndex < nodeNum; ++nodeIndex) {
-            // for (let taskIndex = 0; taskIndex < taskNum; ++taskIndex) {
+        // for (let nodeIndex = 0; nodeIndex < nodeNum; ++nodeIndex) {
+        for (let taskIndex = 0; taskIndex < taskNum; ++taskIndex) {
             if (pheromoneMatrix[nodeIndex][taskIndex] > maxPheromone) {
                 maxPheromone = pheromoneMatrix[nodeIndex][taskIndex];
                 maxIndex = nodeIndex;
@@ -394,30 +399,42 @@ function acaSearch(nodes, tasks, taskNum, nodeNum, nodeCost, nodeMatrix, pheromo
         // 本次迭代中，所有蚂蚁的路径
         let pathMatrix_allAnt = [];
 
+        // console.log("acasearch-nodes:" + nodes);
         for (let i = 0; i < nodeNum; ++i) {
             tempNodes[i] = nodes[i];
         }
-
+        // console.log("tempNodes" + tempNodes);
         // antNum=10
-        let select = random(0, 10);
+        let select = random(1, 10);
+        // console.log("选择的蚂蚁编号为" + select);
+
+        let orderPath = [];
 
         // 蚂蚁循环    antNum=10
         for (let antCount = 0; antCount < 10; ++antCount) {
             // 第antCount只蚂蚁的分配策略(pathMatrix[i][j]表示第antCount只蚂蚁将 j 配送点分配给 i 车辆处理)
             let pathMatrix_oneAnt = initMatrix(nodeNum, taskNum, 0);
 
-            let orderPath = [];
+            orderPath = [];
 
             // 配送点循环
             for (let taskCount = 1; taskCount < taskNum; ++taskCount) {
                 // 第antCount只蚂蚁将第taskCount个任务分配给第nodeCount个车辆处理
                 let nodeCount = assignOneTask(antCount, taskCount, nodeNum, maxPheromoneMatrix, criticalPointMatrix);
+                console.log("nodeCount:" + nodeCount);
+                // console.log("tempNodes[nodeCount]:" + tempNodes[nodeCount]);
+                // console.log("tasks[taskCount]" + tasks[taskCount]);
                 // 若第nodeCount个车辆还能装载
                 if (tempNodes[nodeCount] >= tasks[taskCount]) {
                     pathMatrix_oneAnt[nodeCount][taskCount] = 1;
                     tempNodes[nodeCount] -= tasks[taskCount];
                 }
+
             }
+
+            pathMatrix_allAnt.push(pathMatrix_oneAnt);  // [车辆][配送点]
+            console.log("oneAnt:" + pathMatrix_oneAnt);
+            console.log("allAnt:" + pathMatrix_allAnt);
 
             // 规划路径
             // 第 j 辆车
@@ -436,8 +453,8 @@ function acaSearch(nodes, tasks, taskNum, nodeNum, nodeCost, nodeMatrix, pheromo
                     // 对配送点距离进行比较 选最近的那个
                     for (let q = 1; q < taskNum; ++q) {
                         if (tempPathMatrix[j][q] == 1) {
-                            if (routeMatrix[minNodeIndex][q] < minlength) {
-                                minlength = routeMatrix[minNodeIndex][q];
+                            if (nodeMatrix[minNodeIndex][q] < minlength) {
+                                minlength = nodeMatrix[minNodeIndex][q];
                                 tempIndex = q;
                             }
                         }
@@ -445,19 +462,26 @@ function acaSearch(nodes, tasks, taskNum, nodeNum, nodeCost, nodeMatrix, pheromo
                     tempOrder.push(tempIndex);
                     minNodeIndex = tempIndex;
                     tempPathMatrix[j][minNodeIndex] = 0;
+
                 }// i 循环
 
                 orderPath.push(tempOrder);
+                console.log("车辆 " + j + " 配送路径：" + orderPath);
             }//  j 循环
 
             // 最后一次循环 itCount=99
-            if (select == antCount && itCount == 99) {
+            if (select == antCount && itCount == 98) {
                 path = orderPath;
+                console.log("acasearch--path:" + path);
             }
+
 
             pathMatrix_allAnt.push(orderPath);  // [车辆][配送点]
 
+            console.log("orderPath:" + orderPath);
+            console.log("allAnt:" + pathMatrix_allAnt);
         }
+
 
         // 计算 本次迭代中 所有蚂蚁 的车辆满载率倒数
         let loadFactorArray_oneIt = calLoadFactor_oneIt(pathMatrix_allAnt, tempNodes, nodes, nodeNum);
@@ -486,10 +510,12 @@ function aca(tasks, taskNum, nodes, nodeNum, nodeMatrix, nodeCost) {
 
     // 初始化信息素矩阵
     let pheromoneMatrix = initPheromoneMatrix(nodeNum, taskNum);
+    console.log("pheromoneMatrix:" + pheromoneMatrix);
 
     // 迭代搜索
     path = acaSearch(nodes, tasks, taskNum, nodeNum, nodeCost, nodeMatrix, pheromoneMatrix);
 
+    console.log("path:" + path);
     return path;
 
 }
@@ -537,16 +563,17 @@ const getPath = async (ctx) => {
     console.log('nodeNum:' + nodeNum);
 
     //  初始化配送点合集
-    let tasks = initTaskArray(taskNum);
+    let tasks = await initTaskArray(taskNum);
 
     // 初始化车辆 载重 合集
-    let nodes = initLoadArray(nodeNum);
+    let nodes = await initLoadArray(nodeNum);
+    console.log("nodes" + nodes);
 
     // 初始化车辆油耗合集
-    let nodeCost = initCostArray(nodeNum);
+    let nodeCost = await initCostArray(nodeNum);
 
     // 初始化配送点距离矩阵
-    let nodeMatrix = initRouteMatrix(taskNum);
+    let nodeMatrix = await initRouteMatrix(taskNum);
     // console.log(nodeMatrix);
 
     const path = routePlan(tasks, nodes, nodeCost, nodeMatrix, taskNum, nodeNum);
@@ -554,7 +581,7 @@ const getPath = async (ctx) => {
 
     ctx.body = {
         data: path,
-        total,
+        // total,
         code: 1000,
         desc: 'success'
     }
